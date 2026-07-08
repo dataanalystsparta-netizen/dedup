@@ -3,7 +3,7 @@ import pandas as pd
 import io
 import msoffcrypto
 
-st.set_page_config(page_title="Duplicate Removal", layout="centered")
+st.set_page_config(page_title="Duplicate Removal", layout="centered") 
 st.title("📊 Universal File Cleaner")
 st.write("Upload any data file (Excel, Legacy Excel, Encrypted, or CSV) to automatically remove duplicate records.")
 
