@@ -5,4 +5,5 @@ xlrd
 msoffcrypto-tool 
 xlsxwriter
 pymysql
-sqlalchemy
+cryptography 
+SQLAlchemy
