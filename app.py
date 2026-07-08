@@ -12,6 +12,7 @@ st.write("Upload a file to automatically remove duplicates and cross-check phone
 # --- SIDEBAR: Database & File Settings ---
 with st.sidebar:
     st.header("🗄️ MySQL Connection Settings")
+    # Forces explicit IPv4 tracking
     db_host = st.text_input("DB Host:", value="127.0.0.1", help="Use 127.0.0.1 for local instances.")
     db_port = st.text_input("DB Port:", value="3306")
     db_user = st.text_input("DB User:", value="root")
@@ -44,9 +45,9 @@ def get_clean_engine(user, password, host, port, dbname):
         }
     )
 
-def test_db_connection():
+def execute_connection_test(user, password, host, port, dbname):
     try:
-        engine = get_clean_engine(db_user, db_pass, db_host, db_port, db_name)
+        engine = get_clean_engine(user, password, host, port, dbname)
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return True, "Connection successful! Network pipeline established."
@@ -58,7 +59,8 @@ st.markdown("### 🔍 Step 1: Database Status Verification")
 
 if st.button("⚡ Test DB Connection"):
     with st.spinner("Verifying database credentials..."):
-        is_valid, msg = test_db_connection()
+        # Pass live state parameters to connection handler
+        is_valid, msg = execute_connection_test(db_user, db_pass, db_host, db_port, db_name)
         if is_valid:
             st.success(msg)
             st.session_state["db_verified"] = True
@@ -137,7 +139,7 @@ if st.session_state.get("db_verified", False):
                     df_internal_clean = df.drop_duplicates(subset=[selected_phone_col], keep="first")
                     internal_dupes = len(df) - len(df_internal_clean)
                     
-                    # Connect via network configuration logic
+                    # Connect via network configuration logic using active parameters
                     engine = get_clean_engine(db_user, db_pass, db_host, db_port, db_name)
                     
                     # Stream database column
