@@ -4,3 +4,4 @@ openpyxl
 xlrd 
 msoffcrypto-tool 
 xlsxwriter
+pymysql
