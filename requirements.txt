@@ -1,3 +1,6 @@
-openpyxl
-pandas
-numpy
+streamlit 
+pandas 
+openpyxl 
+xlrd 
+msoffcrypto-tool 
+xlsxwriter
