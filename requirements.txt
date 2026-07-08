@@ -7,3 +7,4 @@ xlsxwriter
 pymysql
 cryptography 
 SQLAlchemy
+mysql
