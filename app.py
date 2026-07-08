@@ -4,7 +4,7 @@ import io
 import msoffcrypto
 
 st.set_page_config(page_title="Duplicate Removal", layout="centered") 
-st.title("📊 Universal File Cleaner")
+st.title("📊 Duplicate Removal")
 st.write("Upload any data file (Excel, Legacy Excel, Encrypted, or CSV) to automatically remove duplicate records.")
 
 def robust_load_file(uploaded_file, password=None):
