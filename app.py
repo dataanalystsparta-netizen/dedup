@@ -12,7 +12,6 @@ st.write("Upload a file to automatically remove duplicates and cross-check phone
 # --- SIDEBAR: Database & File Settings ---
 with st.sidebar:
     st.header("🗄️ MySQL Connection Settings")
-    # Using 127.0.0.1 forces the OS loopback layer directly instead of relying on local domain files
     db_host = st.text_input("DB Host:", value="127.0.0.1", help="Use 127.0.0.1 for local instances.")
     db_port = st.text_input("DB Port:", value="3306")
     db_user = st.text_input("DB User:", value="root")
@@ -41,8 +40,7 @@ def get_clean_engine(user, password, host, port, dbname):
     return create_engine(
         connection_str, 
         connect_args={
-            "connect_timeout": 5,
-            "use_pure": True # Forces PyMySQL to handle pure Python socket allocation
+            "connect_timeout": 5
         }
     )
 
@@ -132,24 +130,24 @@ if st.session_state.get("db_verified", False):
             
             if st.button("🚀 Run Database Suppression"):
                 with st.spinner("Processing file data and pulling database indexes..."):
-                    # Cast column values to a standardized string baseline (clears spaces, floating decimals)
+                    # Cast column values to a standardized string baseline
                     df[selected_phone_col] = df[selected_phone_col].astype(str).str.replace(r'\s+|\.0$', '', regex=True).str.strip()
                     
-                    # Run target validation deduction step internally first
+                    # Run internal deduplication first
                     df_internal_clean = df.drop_duplicates(subset=[selected_phone_col], keep="first")
                     internal_dupes = len(df) - len(df_internal_clean)
                     
                     # Connect via network configuration logic
                     engine = get_clean_engine(db_user, db_pass, db_host, db_port, db_name)
                     
-                    # Stream just the single designated column into memory
+                    # Stream database column
                     query = f"SELECT `{db_phone_col}` FROM `{db_table}`"
                     db_phones_df = pd.read_sql(query, con=engine)
                     
-                    # Transform search list into an instantaneous lookup hash set
+                    # Transform into lookup set
                     db_phones_set = set(db_phones_df[db_phone_col].astype(str).str.replace(r'\s+|\.0$', '', regex=True).str.strip())
                     
-                    # Drop existing values
+                    # Filter
                     df_final = df_internal_clean[~df_internal_clean[selected_phone_col].isin(db_phones_set)]
                     db_suppressed_count = len(df_internal_clean) - len(df_final)
                     
