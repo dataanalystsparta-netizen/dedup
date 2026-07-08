@@ -12,14 +12,13 @@ st.write("Upload a file to automatically remove duplicates and cross-check phone
 # --- SIDEBAR: Database & File Settings ---
 with st.sidebar:
     st.header("🗄️ MySQL Connection Settings")
-    # Forces explicit IPv4 tracking
     db_host = st.text_input("DB Host:", value="127.0.0.1", help="Use 127.0.0.1 for local instances.")
     db_port = st.text_input("DB Port:", value="3306")
     db_user = st.text_input("DB User:", value="root")
     db_pass = st.text_input("DB Password:", type="password", value="")
-    db_name = st.text_input("Database Name:", value="lead_generation")
-    db_table = st.text_input("Table Name:", value="contacts")
-    db_phone_col = st.text_input("DB Phone Column Name:", value="phone_number")
+    db_name = st.text_input("Database Name:", value="sparta_data")
+    db_table = st.text_input("Table Name:", value="raw_data")
+    db_phone_col = st.text_input("DB Phone Column Name:", value="phone")
     
     st.markdown("---")
     st.header("🔐 File Decryption")
@@ -29,19 +28,19 @@ with st.sidebar:
         help="If the uploaded Excel workbook is password-protected, type the password here."
     )
 
-# --- ROBUST CONNECTION BUILDER ---
+# --- ROBUST NATIVE CONNECTION BUILDER ---
 def get_clean_engine(user, password, host, port, dbname):
     """
-    Builds a connection string explicitly forcing standard TCP/IP loopback,
-    avoiding both IPv6 resolution failures and missing local socket file bugs.
+    Builds a connection string using mysqlconnector for reliable local handshakes.
     """
     safe_password = urllib.parse.quote_plus(password)
-    connection_str = f"mysql+pymysql://{user}:{safe_password}@{host}:{port}/{dbname}"
+    # SWITCHED TO NATIVE MYSQLCONNECTOR DIALECT
+    connection_str = f"mysql+mysqlconnector://{user}:{safe_password}@{host}:{port}/{dbname}"
     
     return create_engine(
         connection_str, 
         connect_args={
-            "connect_timeout": 5
+            "connection_timeout": 5
         }
     )
 
@@ -50,7 +49,7 @@ def execute_connection_test(user, password, host, port, dbname):
         engine = get_clean_engine(user, password, host, port, dbname)
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        return True, "Connection successful! Network pipeline established."
+        return True, "Connection successful! Native pipeline established."
     except Exception as e:
         return False, str(e)
 
@@ -58,26 +57,22 @@ def execute_connection_test(user, password, host, port, dbname):
 st.markdown("### 🔍 Step 1: Database Status Verification")
 
 if st.button("⚡ Test DB Connection"):
-    with st.spinner("Verifying database credentials..."):
-        # Pass live state parameters to connection handler
+    with st.spinner("Verifying database credentials via native connector..."):
         is_valid, msg = execute_connection_test(db_user, db_pass, db_host, db_port, db_name)
         if is_valid:
             st.success(msg)
             st.session_state["db_verified"] = True
         else:
-            st.error(f"Database Connection Failed:\n\n`{msg}`\n\n💡 Tip: Verify your host is '127.0.0.1', your password is exact, and your local firewall allows connection lookups.")
+            st.error(f"Database Connection Failed:\n\n`{msg}`\n\n💡 Tip: Double check that your DB Password matches your root account user account password.")
             st.session_state["db_verified"] = False
 
-# Only unlock the workflow when the database check returns True
 if st.session_state.get("db_verified", False):
     st.markdown("---")
     st.markdown("### 📥 Step 2: Upload Data File")
     
     def robust_load_file(uploaded_file, password=None):
-        """Safely decompresses and parses files from different formats and versions."""
         file_bytes = uploaded_file.read()
         file_stream = io.BytesIO(file_bytes)
-        
         try:
             office_file = msoffcrypto.OfficeFile(file_stream)
             if office_file.is_encrypted():
@@ -91,26 +86,20 @@ if st.session_state.get("db_verified", False):
 
         try: return pd.read_excel(file_stream, engine='openpyxl')
         except Exception: file_stream.seek(0)
-            
         try: return pd.read_excel(file_stream, engine='xlrd')
         except Exception: file_stream.seek(0)
-            
         try:
             text_data = file_stream.read().decode('utf-8', errors='ignore')
             return pd.read_csv(io.StringIO(text_data))
         except Exception:
             file_stream.seek(0)
-            
         try:
             text_data = file_stream.read().decode('utf-8', errors='ignore')
             return pd.read_csv(io.StringIO(text_data), sep='\t')
         except Exception:
             raise ValueError("Unsupported or heavily corrupted file format.")
 
-    uploaded_file = st.file_uploader(
-        "Choose a data file to process", 
-        type=["xlsx", "xls", "csv", "tsv", "txt"]
-    )
+    uploaded_file = st.file_uploader("Choose a data file to process", type=["xlsx", "xls", "csv", "tsv", "txt"])
 
     if uploaded_file is not None:
         try:
@@ -124,36 +113,22 @@ if st.session_state.get("db_verified", False):
                     default_idx = i
                     break
                     
-            selected_phone_col = st.selectbox(
-                "Select the 'Phone Number' column from the uploaded file:", 
-                options=all_columns,
-                index=default_idx
-            )
+            selected_phone_col = st.selectbox("Select the 'Phone Number' column from the uploaded file:", options=all_columns, index=default_idx)
             
             if st.button("🚀 Run Database Suppression"):
                 with st.spinner("Processing file data and pulling database indexes..."):
-                    # Cast column values to a standardized string baseline
                     df[selected_phone_col] = df[selected_phone_col].astype(str).str.replace(r'\s+|\.0$', '', regex=True).str.strip()
-                    
-                    # Run internal deduplication first
                     df_internal_clean = df.drop_duplicates(subset=[selected_phone_col], keep="first")
                     internal_dupes = len(df) - len(df_internal_clean)
                     
-                    # Connect via network configuration logic using active parameters
                     engine = get_clean_engine(db_user, db_pass, db_host, db_port, db_name)
-                    
-                    # Stream database column
                     query = f"SELECT `{db_phone_col}` FROM `{db_table}`"
                     db_phones_df = pd.read_sql(query, con=engine)
-                    
-                    # Transform into lookup set
                     db_phones_set = set(db_phones_df[db_phone_col].astype(str).str.replace(r'\s+|\.0$', '', regex=True).str.strip())
                     
-                    # Filter
                     df_final = df_internal_clean[~df_internal_clean[selected_phone_col].isin(db_phones_set)]
                     db_suppressed_count = len(df_internal_clean) - len(df_final)
                     
-                    # --- Metrics Breakdown Output ---
                     st.markdown("### 📊 Metrics Summary")
                     col1, col2, col3 = st.columns(3)
                     col1.metric("Internal File Duplicates", f"{internal_dupes}")
